@@ -1,0 +1,508 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title></title>
+    <style>
+        table, th, td {
+            border: 1px solid black;
+         
+        }
+
+        table {
+            border-collapse: collapse;
+        }
+
+        th,button {
+            padding: 8px;
+            background-color: midnightblue;
+            color: white;
+            border-radius:3px;
+        }
+        button {
+            margin:2px;
+      
+           
+        }
+     
+        tr:nth-child(2n+1) {
+            background-color:ghostwhite;
+        }
+        tr:nth-child(2n) {
+            background-color: lightsteelblue;
+        }
+
+        tr:hover {
+            background-color: royalblue;
+        }
+
+        .EditScreen {
+            border: 1px solid gray;
+            left: 30%;
+            right: 45%;
+            top: 100px;
+            bottom: 22px;
+            background-color: lightsteelblue;
+            position: absolute;
+        }
+
+
+        .View {
+            margin: 35px 10px 10px 10px;
+            position: absolute;
+            left: 5px;
+            right: 5px;
+            top: 10px;
+            bottom: 5px;
+        }
+
+        .Prompt {
+            margin: 35px 10px 10px 10px;
+            position: absolute;
+            left:30%;
+            right:45%;
+            top: 150px;
+            bottom:150px;
+        }
+
+        select {
+            max-width:170px;
+        }
+
+
+
+    </style>
+    <script>
+
+
+        //A class that represents a window and has functions of showing a window or hiding a window
+
+        class View {
+            constructor(container) {
+                let div = document.createElement('div');
+                div.className = 'EditScreen';
+                this.container = container;
+                this.div = div;
+
+                let closeButton = document.createElement('img');
+                closeButton.src = 'close.png';
+                closeButton.style.float = 'right';
+                this.div.appendChild(closeButton);
+                closeButton.onclick = this.hide.bind(this);
+
+                this.inner = document.createElement('div');
+                this.inner.className = 'View';
+                this.outer = div;
+                this.div.appendChild(this.inner);
+              
+            }
+
+            show() {
+                this.container.appendChild(this.div);
+            }
+
+            hide() {
+                this.container.removeChild(this.div);
+
+            }
+
+        }
+
+
+        //A class representing a window to delete a product.
+
+        class PromptView extends View {
+            constructor(container,message,buttonText,whatToDo) {
+                super(container);
+                let p = document.createElement('p');
+                p.innerHTML = message;
+                this.inner.appendChild(p);
+                this.outer.classList.add('Prompt');
+                let btn = document.createElement('button');
+                btn.innerHTML = buttonText;
+           
+                btn.onclick = whatToDo;
+                this.inner.appendChild(btn);
+                this.show();
+            }
+        }
+
+
+        //A class that represents an edit window and has functions of adding a product / updating a product or deleting a product
+        class EditView extends View {
+            constructor(container, columns,onUpdate,onDelete) {
+                super(container);
+                this.columns = columns;
+                this.inputElements = {};
+                this.onUpdate = onUpdate;
+                this.onDelete = onDelete;
+
+                for (let i = 0; i < columns.length; i++) {
+                    let p = document.createElement('p');
+                    let label = document.createElement('label');
+                    label.style.width = '90px';
+                    label.style.display = 'inline-block';
+                    label.innerHTML = columns[i].title;
+                    let input;
+
+                    if (columns[i].type == 'foreignKey') {
+                        input = document.createElement('select');
+                        
+                    } else {
+                        input = document.createElement('input');
+                        switch (columns[i].type) {
+                            case 'number':
+                                input.type = 'number';
+                                break;
+                            case 'text':
+                                input.type = 'text';
+                                break;
+                            case 'boolean':
+                                input.type = 'checkbox';
+                                break;
+                        }
+                        if (columns[i].primaryKey) {
+                            input.disabled = true;
+                        }
+                    }
+                    this.inputElements[columns[i].name] = input;
+                    p.appendChild(label);
+                    p.appendChild(input);
+                    this.inner.appendChild(p);
+                }
+                let btnSave = document.createElement('button');
+                btnSave.innerHTML = "save";
+                btnSave.onclick = this.save.bind(this);
+                this.inner.appendChild(btnSave);
+                let btnDelete = document.createElement('button');
+                btnDelete.innerHTML = 'delete';
+                btnDelete.onclick = this.delete.bind(this);
+                this.inner.appendChild(btnDelete);
+                this.btnDelete = btnDelete;
+                this.inner.style.overflowY = 'scroll';
+                this.isEdit = null;
+            }
+
+
+
+            delete(ev) {
+                if (!this.onDelete)
+                    return;
+               let prompt= new PromptView(this.container, "Are you sure you want to delete?", "yes", () => {
+                   let obj = ev.target.obj;
+                   let primaryKeyColumn = ev.target.primaryKeyColumn;
+                   let idToDelete=obj[primaryKeyColumn.name];
+                   ev.target.prompt.hide();
+                   ev.target.viewToClose.hide();
+                    this.onDelete(idToDelete);
+               });
+                ev.target.prompt = prompt;
+                ev.target.viewToClose = this;
+            }
+
+
+
+            save() {
+                let obj = {};
+                for (let i = 0; i < this.columns.length; i++) {
+                    let column = this.columns[i];
+                    let input = this.inputElements[column.name];
+                    let newValue;
+                    if (column.type == 'foreignKey') {
+                        newValue = parseInt(input.value);
+
+                    } else {
+                        switch (column.type) {
+                            case 'number':
+                                newValue = 0;
+                                if (input.value.length > 0)
+                                    newValue = parseInt(input.value);
+                                break;
+                            case 'text':
+                                newValue = null;
+                                if (input.value.length > 0)
+                                    newValue = input.value;
+                                break;
+                            case 'boolean':
+                                newValue = input.checked;
+                                break;
+
+                        }
+                      
+                    }
+                    obj[column.name] = newValue;
+
+                }
+               
+                if (this.onUpdate) {
+                    this.onUpdate(obj, this.isEdit);
+                    }
+                
+
+                this.hide();
+                    
+            }
+
+
+
+            show(obj) {
+                super.show();
+                this.isEdit = obj ? true : false;
+                this.btnDelete.disabled = !this.isEdit;
+                this.btnDelete.obj = obj;
+                    for (let i = 0; i < this.columns.length; i++) {
+                        let column = this.columns[i];
+                        let f = obj && obj.hasOwnProperty(column.name) && obj[column.name] != null;
+                        if (column.primaryKey) {
+                            this.btnDelete.primaryKeyColumn = column;
+                        }
+                            switch (column.type) {
+                                case 'number':
+                                    this.inputElements[column.name].value = f ? obj[column.name].toString(): "0";
+                                    break;
+                                case 'text':
+                                    this.inputElements[column.name].value =f ? obj[column.name]:"";
+                                    break;
+                                case 'boolean':
+                                    this.inputElements[column.name].checked = f ? obj[column.name] : false;
+                                    break;
+                                case 'foreignKey':
+                                    let input = this.inputElements[column.name];
+                                    removeAllChildesNodes(input);
+                                    let dataSource = column.dataSource;
+                                    for (let j = 0; j < dataSource.length; j++) {
+                                        let option = document.createElement('option');
+                                        option.value = dataSource[j][column.name];
+                                        option.selected = f ? obj[column.name] === dataSource[j][column.name] : false;
+                                        option.innerHTML = dataSource[j][column.contentFrom];
+                                        input.appendChild(option);
+                                    }
+                                    break;
+                            }
+                    }
+
+            }
+
+
+
+        }
+
+
+
+        let ddCategory;
+        let divProducts;
+        let categories = [];
+        let suppliers = [];
+        let divContainer;
+        let view;
+   
+        let productsColumns = [
+            { name: 'productID', title: 'ID', type: 'number', primaryKey: true },
+            { name: 'productName', title: 'Name', type: 'text' },
+            { name: 'supplierID', title: 'Supplier', type: 'foreignKey', displayColumn: 'supplierName', dataSource: suppliers, contentFrom: 'companyName' },
+            { name: 'quantityPerUnit', title: 'Quantity/Unit', type: 'text' },
+            { name: 'unitPrice', title: 'Unit Price', type: 'number' },
+            { name: 'unitsInStock', title: 'Units In Stock', type: 'number' },
+            { name: 'unitsOnOrder', title: 'Units ON Order', type: 'number' },
+            { name: 'reorderLevel', title: 'Reorder Level', type: 'number' },
+            { name: 'discontinued', title: 'Discontinued', type: 'boolean' },
+            { name: 'categoryID', title: 'Category', type: 'foreignKey', displayColumn: 'categoryName', dataSource: categories, contentFrom:'categoryName' }
+        ];
+
+        let suppliersColumns = [
+            { name: 'supplierID', title: 'ID', type: 'number', primaryKey: true },
+            { name: 'companyName', title: 'Company Name', type: 'text' },
+            { name: 'contactName', title: 'Contact Name', type: 'text' },
+            { name: 'contactTitle', title: 'Contact Title', type: 'text' },
+            { name: 'address', title: 'Address', type: 'text' },
+            { name: 'city', title: 'City', type: 'text' }
+        ];
+
+
+        function init() {
+            divContainer = document.getElementById('divContainer');
+            ddCategory = document.getElementById("ddCategory");
+            divProducts = document.getElementById("divProducts");
+
+            let optionPleaseWait = document.createElement('option');
+            optionPleaseWait.innerHTML = 'please wait';
+            ddCategory.appendChild(optionPleaseWait);
+
+            //Execute an Http request to the server to get the product categories
+
+            sendHttpRequest('api/categories/pull', (success, response) => {
+                removeAllChildesNodes(ddCategory);
+
+                if (success) {
+                    let loadedCategories = JSON.parse(response);
+                    for (let i = 0; i < loadedCategories.length; i++) {
+                        categories.push(loadedCategories[i]);
+                    }
+                    for (let i = 0; i < categories.length; i++) {
+                        let optionCategories = document.createElement('option');
+                        optionCategories.innerHTML = categories[i].categoryName;
+                        optionCategories.value = categories[i].categoryID;
+                        ddCategory.appendChild(optionCategories);
+                    }
+                    loadProducts();
+                }
+
+            });
+
+            //Execute Http request to the server to get the supplier of the product
+            sendHttpRequest('api/suppliers/pull', (success, response) => {
+                if (success) {
+                    let pulledSuppliers = JSON.parse(response);
+                    for (let i = 0; i < pulledSuppliers.length; i++) {
+                        suppliers.push(pulledSuppliers[i]);
+                    }
+                }
+                   
+                    
+                
+            });
+
+
+            // Created an object that represents a window to add/update and delete the product and Execute Http request to the server to for add/update and delete product
+            view = new EditView(divContainer, productsColumns, (obj, isEdit) => {
+                sendHttpRequest('api/products/' + (isEdit?'update':'insert'), (success, response) => {
+                    if (response == 'true') {
+                        loadProducts();
+                    }
+                }, obj);
+            }, (idToDelete) => {
+                    sendHttpRequest('api/products/delete?id=' + idToDelete, (success, response) => {
+                        if (success && response == 'true')
+                            loadProducts();
+                    });
+            });
+        }
+
+
+        //Deletes the categories or products from the section so that if there is a change we can see the update after reloading the products
+        function removeAllChildesNodes(node) {
+            while (node.firstChild)
+                node.removeChild(node.firstChild);
+        }
+
+
+
+        //Execute http request (type Get/Post) to the server and receiving a response from the server
+        function sendHttpRequest(url, whatToDo,body) {
+            let httpRequest = new XMLHttpRequest();
+            httpRequest.onreadystatechange = function () {
+                if (httpRequest.readyState == 4) {
+                    whatToDo(httpRequest.status == 200, httpRequest.responseText);
+                }
+            };
+            if (body) {
+                httpRequest.open("POST", url, true);
+                httpRequest.setRequestHeader('Content-Type', 'application/json;;charset=UTF-8');
+                httpRequest.send(JSON.stringify(body));
+            } else {
+                httpRequest.open("GET", url, true);
+                httpRequest.send();
+            }
+
+        }
+
+
+        //Displays the table of products
+
+        function renderTable(columns, container, data) {
+
+            removeAllChildesNodes(container);
+
+            let tbl = document.createElement('table');
+
+            let trHeader = document.createElement('tr');
+            for (let i = 0; i < columns.length; i++) {
+                let th = document.createElement('th');
+                th.innerHTML = columns[i].title;
+                trHeader.appendChild(th);
+
+            }
+            tbl.appendChild(trHeader);
+
+
+            for (let i = 0; i < data.length; i++) {
+                let tr = document.createElement('tr');
+                tr.onclick = () => {
+                    view.show(data[i]);
+                };
+                for (let j = 0; j < columns.length; j++) {
+                    let td = document.createElement('td');
+                    let str = "";
+                    switch(columns[j].type) {
+                        case "text":
+                            str = data[i][columns[j].name];
+                            break; 
+                        case "number":
+                            str = data[i][columns[j].name];
+                            break;
+
+                        case "boolean":
+                            str = data[i][columns[j].name] ? '&#10003' : '';
+                            break;
+                        case "foreignKey":
+                            str = data[i][columns[j].displayColumn];
+                            break;
+                    }
+
+                    td.innerHTML = str;
+                    tr.appendChild(td);
+                }
+
+                tbl.appendChild(tr);
+            }
+            let trAdd = document.createElement('tr');
+            let tdAdd = document.createElement('td');
+            tdAdd.colSpan = columns.length;
+            let btnAdd = document.createElement('button');
+
+            btnAdd.innerHTML = "add";
+            btnAdd.onclick = () => {
+                view.show(null);
+            };
+            tdAdd.appendChild(btnAdd);
+            trAdd.appendChild(tdAdd);
+            tbl.appendChild(trAdd);
+
+            container.appendChild(tbl);
+        }
+
+
+
+
+        function loadProducts() {
+            let categoryId = categories[ddCategory.selectedIndex].categoryID;
+            
+            //Execute An Http request to the server to get the products.
+            sendHttpRequest('api/products/pull?categoryId=' + categoryId, (success, response) => {
+
+                if (success) {
+                    renderTable(productsColumns, divProducts, JSON.parse(response));
+                }
+
+               
+            });
+        }
+
+   
+
+
+    </script>
+
+</head>
+
+<body onload="init()">
+    <div id="divContainer">
+        <h1>Product management</h1>
+        <p>
+            <label>category: </label><select id="ddCategory" onchange="loadProducts()"></select>
+        </p>
+        <div id="divProducts"></div>
+    </div>
+
+</body>
+</html>
